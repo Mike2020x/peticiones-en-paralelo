@@ -1,66 +1,81 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
 
-const EpisodeList = () => {
-  const [episodes, setEpisodes] = useState([]);
+import { useEffect, useState } from 'react'
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get("https://rickandmortyapi.com/api/episode");
-        const episodesData = response.data.results.slice(0, 20);
 
-        const episodePromises = episodesData.map(async (episode) => {
-          const characterUrls = episode.characters.slice(0, 10);
+async function getAllEpisodes() {
+    const response = await fetch('https://rickandmortyapi.com/api/episode');
+    const data = await response.json();
+    return data.results;
+}
 
-          const characterPromises = characterUrls.map(async (url) => {
-            const characterResponse = await axios.get(url);
-            const character = characterResponse.data;
-            return { name: character.name, species: character.species };
-          });
+async function getCharacterInfo(url) {
+    const response = await fetch(url);
+    const data = await response.json();
+    return data;
+}
 
-          const characters = await Promise.all(characterPromises);
-          return { episode: episode, characters: characters };
-        });
+async function getData() {
+    const episodes = await getAllEpisodes();
 
-        const episodeResults = await Promise.all(episodePromises);
-        setEpisodes(episodeResults);
-      } catch (error) {
-        console.error(error);
-      }
-    };
+    const characters = episodes.reduce((acc, item) => {
+        return [...acc, ...item.characters.slice(0, 10)]
+    }, [])
 
-    fetchData();
-  }, []);
+    const characterPromise = characters.map((url) => {
+        return getCharacterInfo(url);
+    });
+    const result = await Promise.all(characterPromise)
 
-  const getCharactersFromEpisode = (episode) => {
-    const characters = episode.characters.map((character) => ({
-      name: character.name,
-      species: character.species
-    }));
-    return characters;
-  };
+    const data = episodes.map((episode) => {
+        return {
+            id: episode.episode,
+            title: `${episode.name} - ${episode.episode}`,
+            dateToAir: episode.air_date,
+            characters: episode.characters.slice(0, 10).map((url) => {
+                return result.find((item) => item.url === url)
+            })
+        }
+    });
 
-  return (
-    <div>
-      {episodes.map((episodeResult, index) => (
-        <div key={index}>
-          <h2>
-            {episodeResult.episode.name} - {episodeResult.episode.episode}
-          </h2>
-          <p>Fecha al aire: {episodeResult.episode.air_date}</p>
-          <h3>Personajes:</h3>
-          <ul>
-            {getCharactersFromEpisode(episodeResult).map((character, index) => (
-              <li key={index}>
-                {character.name} - {character.species}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
-};
+    return data
+}
 
-export default EpisodeList;
+const RickMorty = () => {
+    const [data, setData] = useState([])
+
+    useEffect(() => {
+        getData().then((data) => {
+            setData(data)
+        })
+    }, []);
+
+    return (
+        <div>
+            <ul>
+                {
+                    data.map((item) => (
+                        <li key={item.id}>
+                            <p>Titulo: {item.title}</p>
+                            <p>Fecha de estreno: {item.dateToAir}</p>
+                            <p>
+                                Personajes
+                                <ol>
+                                    {
+                                        item.characters.map((character) => (
+                                            <li key={character.id}>
+                                                <p><strong>Nombre:</strong> {character.name}</p>
+                                                <p><strong>Especie:</strong> {character.species}</p>
+                                            </li>
+                                        ))
+                                    }
+                                </ol>
+                            </p>
+                        </li>
+                    ))
+                }
+            </ul>
+        </div >
+    )
+}
+
+export default RickMorty
